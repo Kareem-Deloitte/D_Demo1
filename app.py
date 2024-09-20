@@ -8,6 +8,8 @@ class Home(Resource):
     def get(self):
         return {'version': '1.0'}
 
+#added a comment here!
+
 class ConvertTemp(Resource):
     def get(self):
         # Get arguments from query parameters
