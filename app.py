@@ -1,55 +1,56 @@
-name: CI/CD Pipeline
+from flask import Flask, request
+from flask_restful import Resource, Api
 
-on:
-  push:
-    branches:
-      - session-1
-      - session-2
-  pull_request:
-    branches:
-      - main
+app = Flask(__name__)
+api = Api(app)
 
-jobs:
-  test:
-    runs-on: ubuntu-latest
+class Home(Resource):
+    def get(self):
+        return {'version': '1.0'}
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+class ConvertTemp(Resource):
+    def get(self):
+        # Get arguments from query parameters
+        temp = float(request.args.get('temp'))
+        scale = request.args.get('scale').lower()
+        target_scale = request.args.get('target_scale').lower()
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'  
+        # Perform temperature conversion
+        converted_temp = self.convert_temperature(temp, scale, target_scale)
+        
+        if converted_temp is None:
+            return {'error': 'Invalid scale or target scale'}, 400
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        return {'converted_temp': converted_temp, 'target_scale': target_scale}
 
-      - name: Run tests
-        run: |
-          pytest --maxfail=1 --disable-warnings
+    def convert_temperature(self, temp, scale, target_scale):
+        # Conversion logic
+        if scale == target_scale:
+            return temp
 
-  build_and_push:
-    runs-on: ubuntu-latest
-    needs: test
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
+        if scale == 'celsius':
+            if target_scale == 'fahrenheit':
+                return temp * 9/5 + 32
+            elif target_scale == 'kelvin':
+                return temp + 273.15
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        elif scale == 'fahrenheit':
+            if target_scale == 'celsius':
+                return (temp - 32) * 5/9
+            elif target_scale == 'kelvin':
+                return (temp - 32) * 5/9 + 273.15
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_HUB_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+        elif scale == 'kelvin':
+            if target_scale == 'celsius':
+                return temp - 273.15
+            elif target_scale == 'fahrenheit':
+                return (temp - 273.15) * 9/5 + 32
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/tech-trek:${{ github.sha }}
+        # If scales are invalid
+        return None
+
+api.add_resource(Home, '/')
+api.add_resource(ConvertTemp, '/convert-temp')
+
+if __name__ == '__main__':
+    app.run(debug=True)
